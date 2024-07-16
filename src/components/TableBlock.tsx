@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useDrag, useDrop } from "react-dnd";
 
 interface Table {
   id: string;
@@ -11,6 +12,12 @@ interface TableBlockProps {
   onRemove: (id: string) => void;
   position: { x: number; y: number };
   updatePosition: (id: string, x: number, y: number) => void;
+  onColumnDrop: (
+    sourceTableId: string,
+    sourceColumn: string,
+    targetTableId: string,
+    targetColumn: string
+  ) => void;
 }
 
 const TableBlock = ({
@@ -18,7 +25,16 @@ const TableBlock = ({
   onRemove,
   position,
   updatePosition,
+  onColumnDrop,
 }: TableBlockProps) => {
+  const [{ isDraggingTable }, drag, preview] = useDrag(() => ({
+    type: "TABLE",
+    item: { id: table.id },
+    collect: (monitor) => ({
+      isDraggingTable: monitor.isDragging(),
+    }),
+  }));
+
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
@@ -54,11 +70,20 @@ const TableBlock = ({
 
   return (
     <div
+      ref={preview}
       className="border p-2 m-2 w-48 h-40 bg-white shadow-md absolute"
-      style={{ left: position.x, top: position.y, cursor: isDragging ? 'grabbing' : 'grab' }}
-      onMouseDown={handleMouseDown}
+      style={{
+        left: position.x,
+        top: position.y,
+        cursor: isDragging ? "grabbing" : "grab",
+        opacity: isDraggingTable ? 0.5 : 1,
+      }}
     >
-      <div className="flex justify-between">
+      <div
+        ref={drag}
+        className="flex justify-between cursor-move"
+        onMouseDown={handleMouseDown}
+      >
         <span className="font-bold text-lg">{table.name}</span>
         <button onClick={() => onRemove(table.id)} className="text-red-500">
           X
@@ -66,10 +91,48 @@ const TableBlock = ({
       </div>
       <ul>
         {table.columns.map((column) => (
-          <li key={column}>{column}</li>
+          <Column
+            key={column}
+            tableId={table.id}
+            column={column}
+            onColumnDrop={onColumnDrop}
+          />
         ))}
       </ul>
     </div>
+  );
+};
+
+interface ColumnProps {
+  tableId: string;
+  column: string;
+  onColumnDrop: (
+    sourceTableId: string,
+    sourceColumn: string,
+    targetTableId: string,
+    targetColumn: string
+  ) => void;
+}
+
+const Column = ({ tableId, column, onColumnDrop }: ColumnProps) => {
+  const [, ref] = useDrag({
+    type: "COLUMN",
+    item: { tableId, column },
+  });
+
+  const [, drop] = useDrop({
+    accept: "COLUMN",
+    drop: (item: { tableId: string; column: string }) => {
+      if (item.tableId !== tableId || item.column !== column) {
+        onColumnDrop(item.tableId, item.column, tableId, column);
+      }
+    },
+  });
+
+  return (
+    <li ref={(node) => ref(drop(node))} className="p-1 border cursor-pointer">
+      {column}
+    </li>
   );
 };
 

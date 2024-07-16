@@ -7,6 +7,13 @@ interface Table {
   columns: string[];
 }
 
+interface Relationship {
+  sourceTableId: string;
+  sourceColumn: string;
+  targetTableId: string;
+  targetColumn: string;
+}
+
 const tablesData: Table[] = [
   { id: "1", name: "Users", columns: ["id", "name", "email"] },
   { id: "2", name: "Products", columns: ["id", "title", "price"] },
@@ -17,6 +24,7 @@ const SchemaBuilder = () => {
   const [positions, setPositions] = useState<{
     [key: string]: { x: number; y: number };
   }>({});
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
 
   const handleDrop = (table: Table) => {
     if (!addedTables.some((t) => t.id === table.id)) {
@@ -38,6 +46,9 @@ const SchemaBuilder = () => {
       delete newPositions[id];
       return newPositions;
     });
+    setRelationships((prev) =>
+      prev.filter((rel) => rel.sourceTableId !== id && rel.targetTableId !== id)
+    );
   };
 
   const updatePosition = (id: string, x: number, y: number) => {
@@ -45,6 +56,18 @@ const SchemaBuilder = () => {
       ...prev,
       [id]: { x, y },
     }));
+  };
+
+  const handleColumnDrop = (
+    sourceTableId: string,
+    sourceColumn: string,
+    targetTableId: string,
+    targetColumn: string
+  ) => {
+    setRelationships((prev) => [
+      ...prev,
+      { sourceTableId, sourceColumn, targetTableId, targetColumn },
+    ]);
   };
 
   const findNonOverlappingPosition = () => {
@@ -76,6 +99,38 @@ const SchemaBuilder = () => {
     return { x: padding, y: padding };
   };
 
+  const renderLines = () => {
+    return relationships.map((rel, index) => {
+      const sourcePos = positions[rel.sourceTableId];
+      const targetPos = positions[rel.targetTableId];
+
+      if (!sourcePos || !targetPos) return null;
+
+      const sourceIndex = addedTables
+        .find((t) => t.id === rel.sourceTableId)
+        ?.columns.indexOf(rel.sourceColumn);
+      const targetIndex = addedTables
+        .find((t) => t.id === rel.targetTableId)
+        ?.columns.indexOf(rel.targetColumn);
+
+      const sourceX = sourcePos.x + 200;
+      const sourceY = sourcePos.y + 40 + sourceIndex! * 20;
+      const targetX = targetPos.x;
+      const targetY = targetPos.y + 40 + targetIndex! * 20;
+
+      return (
+        <line
+          key={index}
+          x1={sourceX}
+          y1={sourceY}
+          x2={targetX}
+          y2={targetY}
+          stroke="black"
+        />
+      );
+    });
+  };
+
   return (
     <div className="flex h-screen">
       <div className="w-1/4 border p-2 bg-gray-100">
@@ -99,6 +154,7 @@ const SchemaBuilder = () => {
       </div>
       <div className="flex-1 border p-2 bg-grid relative">
         <h2 className="font-bold">Schema Area</h2>
+        <svg className="absolute inset-0">{renderLines()}</svg>
         {addedTables.map((table) => (
           <TableBlock
             key={table.id}
@@ -106,6 +162,7 @@ const SchemaBuilder = () => {
             onRemove={handleRemove}
             position={positions[table.id]}
             updatePosition={updatePosition}
+            onColumnDrop={handleColumnDrop}
           />
         ))}
       </div>
